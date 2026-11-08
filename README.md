@@ -1,17 +1,40 @@
-# os-findmy-emulation
+# os-findmy-e — enhanced edition
 
-This repository contains three projects:
+Enhanced Android client for Apple Find My–protocol tags, based on
+[sacca97/os-findmy-e](https://github.com/sacca97/os-findmy-e) (GPL-2.0).
+All changes are also proposed upstream via
+[sacca97/os-findmy-e#2](https://github.com/sacca97/os-findmy-e/pull/2).
 
-- [`macOS-ADI-emulator`](macOS-ADI-emulator/README.md): Python package for the macOS 26 ADI daemon. This is the only project planned for release.
-- [`native`](native/README.md): Rust implementation. The CLI has completed a live Apple login; live location retrieval and keychain recovery still need validation.
-- [`app`](app/README.md): Android app built on the Rust library. Its Apple-facing flow has been verified.
+**Deployed and verified on-device** (Android 14, arm64) against a third-party
+static-key Find My tag (DEONE MTAG).
 
-Python tools: `tools/machoadi/` (including the `auth_probe.py` login driver), the shell wrappers in `tools/`, and their offline tests (`python -m unittest discover -s tools/tests`).
+## What this branch adds
 
-The Apple CoreADI binaries are not committed. Each project README explains which binary it needs and how to run it.
+- **Static single-key tags** — full support for tags with a fixed P-224 key:
+  native `fetch_key_reports`/`static_keys_info` commands, separate encrypted key
+  blob, safe import flow, per-tag list integration (rolling tags unaffected)
+- **Vendor BLE protocol (round 2)** — ring (`PL`/`ST`), battery query (`GVBAT`)
+  with a standing status line (persisted sample, silent 12 h re-query), and a
+  **read-only rekey check** that reconstructs the advertised public key and
+  compares it against the imported key — detects out-of-band key overwrites of
+  your own tag. No key-writing frames anywhere in the app.
+- **Auth hardening** — SMS-first second factor; Apple 401 auto-renews the
+  session once before asking for re-login
+- **Weekly WorkManager fetch** with persisted last reports and a
+  coordinate-free notification
+- **Offline basemap** — style template with `file://` glyphs/sprites and a
+  `pmtiles://` placeholder; bring your own tile pack, no rebuild needed
+- Quiet "not seen by an iPhone yet" state instead of an error banner
+
+## Hard-won device lessons (in the code comments)
+
+`SCAN_MODE_LOW_LATENCY` is required on some OEM stacks; hardware
+manufacturer-data filters miss scan-response payloads; the API 33
+`writeDescriptor`/`writeCharacteristic` overloads reject right after
+discovery (the deprecated Boolean overloads queue reliably); the tag drops
+GATT after ~800 ms so the CCCD setup runs off the cached service list.
 
 ## License
 
-Copyright (c) 2026 sacca. This repository is licensed under the [GNU GPL, version 2 only](LICENSE). The ADI emulators link [Unicorn](https://www.unicorn-engine.org/) (GPL-2.0; a few of its QEMU-derived files are GPL-2.0-only), so everything built from them, including the Android APK, is distributed under GPL-2.0. Some dependencies (for example `prost` and `ring`, Apache-2.0) have licences the FSF considers incompatible with GPL-2.0-only; the question is open. Third-party notices are in [THIRD_PARTY_LICENSES](THIRD_PARTY_LICENSES).
-
-Apple's CoreADI and `adid` binaries are not covered by this license and are not part of this repository; do not redistribute them or an APK that bundles them (the debug build embeds CoreADI).
+GPL-2.0-only, same as upstream. The enhanced fork is unrelated to and
+unendorsed by Apple or the tag vendor.

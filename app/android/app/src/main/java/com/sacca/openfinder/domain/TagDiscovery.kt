@@ -36,4 +36,13 @@ interface AccountSetup {
 
     /** Hashed advertising keys (base64, the accessories' stable ids) of the imported static tags. No Apple contact. */
     suspend fun staticKeyHashes(): List<String>
+
+    /**
+     * Persists a nearby key rotation result: appends [newJson] as the current key and removes
+     * the superseded active entry. The superseded entry is the one whose
+     * hashed advertising key equals [oldHashB64] (the tag's key before the write); when that hash is not in
+     * the blob (reclaim after a foreign write), entries named exactly like the fresh key are retired instead.
+     * Returns the new blob size. No Apple contact.
+     */
+    suspend fun rotateStaticKeys(newJson: String, oldHashB64: String?): Int
 }

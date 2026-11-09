@@ -51,6 +51,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -110,6 +111,7 @@ fun MapScreen(vm: MapViewModel, selfTestVm: SelfTestViewModel?, accountVm: com.s
                 accessories = ui.accessories, selectedId = ui.selectedId, loadedOnce = ui.loadedOnce,
                 refreshing = ui.refreshing, error = ui.error, waitingForReports = ui.waitingForReports, now = ui.now,
                 historyWindow = ui.historyWindow, onHistoryWindow = vm::setHistoryWindow,
+                historyStorageFailed = ui.historyStorageFailed,
                 rekeyCheck = { RekeyCheckSection(accountVm) },
                 tagTools = { com.sacca.openfinder.ble.TagToolsSection(accountVm) },
                 onSetup = { accountVm.reload(); showAccount = true }, onChangeIcon = vm::setIcon,
@@ -185,16 +187,17 @@ private fun SettingsDialog(
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
-        confirmButton = { TextButton(onClick = onDismiss) { Text("Done") } },
-        title = { Text("Settings") },
+        confirmButton = { TextButton(onClick = onDismiss) { Text(stringResource(com.sacca.openfinder.R.string.settings_done)) } },
+        title = { Text(stringResource(com.sacca.openfinder.R.string.settings_title)) },
         text = {
             Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedButton(onClick = onOpenAccount, Modifier.fillMaxWidth()) { Text("Apple account…") }
-                OutlinedButton(onClick = onClearCache, Modifier.fillMaxWidth()) { Text("Clear cached information") }
+                OutlinedButton(onClick = onOpenAccount, Modifier.fillMaxWidth()) { Text(stringResource(com.sacca.openfinder.R.string.settings_account)) }
+                OutlinedButton(onClick = onClearCache, Modifier.fillMaxWidth()) { Text(stringResource(com.sacca.openfinder.R.string.settings_clear_cache)) }
+                Text(stringResource(com.sacca.openfinder.R.string.history_retention), style = MaterialTheme.typography.bodySmall)
                 if (onOpenSelfTest != null) {
-                    OutlinedButton(onClick = onOpenSelfTest, Modifier.fillMaxWidth()) { Text("Anisette self-test (debug)") }
+                    OutlinedButton(onClick = onOpenSelfTest, Modifier.fillMaxWidth()) { Text(stringResource(com.sacca.openfinder.R.string.settings_selftest)) }
                 }
-                Text("Version ${BuildConfig.VERSION_NAME}", style = MaterialTheme.typography.bodySmall)
+                Text(stringResource(com.sacca.openfinder.R.string.settings_version, BuildConfig.VERSION_NAME), style = MaterialTheme.typography.bodySmall)
                 Text("Map data © OpenStreetMap contributors · OpenFreeMap", style = MaterialTheme.typography.bodySmall)
             }
         },

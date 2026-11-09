@@ -42,8 +42,7 @@ var lastFindMyShaped: Int = 0
  * enforced by [nearRssi]: ring and battery are only offered while the tag answers this loud.
  *
  * The scan is read-only. Nothing in this file ever sends `PK`, `UPDATE` or `GETTOKEN` — the only
- * writes the app performs over BLE are the benign `PL`/`ST` (ring) and `GVBAT` (battery) commands
- * defined by the vendor-protocol round 2 in audit-notes.md.
+ * control commands issued here are `PL`/`ST` (ring) and `GVBAT` (battery); key management is separate.
  */
 @SuppressLint("MissingPermission")   // callers hold BLUETOOTH_SCAN (+ location on this Android version)
 suspend fun scanForVerifiedTag(context: Context, expectedB64: Set<String>, seconds: Int = 3, nearRssi: Int = -70): VerifiedTag? {

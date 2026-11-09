@@ -20,6 +20,8 @@ import com.sacca.openfinder.data.OpenFinderRepository
 import com.sacca.openfinder.data.RustOpenFinderBackend
 import com.sacca.openfinder.security.SecretStore
 import com.sacca.openfinder.data.IconStore
+import com.sacca.openfinder.data.LocationHistoryStore
+import com.sacca.openfinder.apple.reports.SecretStoreBlobs
 import com.sacca.openfinder.work.FetchWorker
 import com.sacca.openfinder.work.LastReports
 import java.io.File
@@ -37,9 +39,11 @@ class AppContainer(context: Context) {
     val liveBackend = RustOpenFinderBackend(machineStorage, coreAdiImage, SecretStore(context, "openfinder_machine_key"), cooldown)
     val accountSetup: com.sacca.openfinder.domain.AccountSetup = liveBackend
 
-    val repository = OpenFinderRepository(liveBackend, IconStore(context))
+    val repository = OpenFinderRepository(liveBackend, IconStore(context),
+        LocationHistoryStore(SecretStoreBlobs(SecretStore(context, "openfinder_history_key"))),
+        LastReports(File(context.filesDir, "reports")))
 
-    /** The weekly worker's last-known-location store (plain JSON in app-private storage). */
+    /** The background worker's latest-location notification snapshot (app-private JSON). */
     val lastReports by lazy { LastReports(File(context.filesDir, "reports")) }
 }
 
@@ -71,12 +75,14 @@ class OpenFinderApp : Application(), Configuration.Provider {
             StrictMode.setThreadPolicy(StrictMode.ThreadPolicy.Builder().detectAll().penaltyLog().build())
         }
         container = AppContainer(this)
-        scheduleWeeklyFetch()
+        schedulePeriodicFetch()
     }
 
-    /** One periodic fetch per install: 7 d period with a 1 d flex window, network required. UPDATE keeps the schedule across code changes. */
-    private fun scheduleWeeklyFetch() {
-        val request = PeriodicWorkRequestBuilder<FetchWorker>(7, TimeUnit.DAYS, 1, TimeUnit.DAYS)
+    /** Collect batches throughout the day; the server may return only the latest few sightings.
+     *  WorkManager may defer this under Doze/battery restrictions. This job never connects to BLE.
+     *  UPDATE keeps one existing job while migrating the former daily schedule. */
+    private fun schedulePeriodicFetch() {
+        val request = PeriodicWorkRequestBuilder<FetchWorker>(30, TimeUnit.MINUTES, 5, TimeUnit.MINUTES)
             .setConstraints(
                 Constraints.Builder()
                     .setRequiredNetworkType(NetworkType.CONNECTED)

@@ -96,7 +96,8 @@ class RustOpenFinderBackend(
         val infos = reply.getJSONArray("keys")
         rolling + List(infos.length()) { i ->
             val o = infos.getJSONObject(i)
-            Accessory(id = o.getString("hashed_adv_key_b64"), name = o.optString("name").ifEmpty { "Static tag" })
+            val name = if (o.isNull("name")) "Static tag" else o.optString("name").ifBlank { "Static tag" }
+            Accessory(id = o.getString("hashed_adv_key_b64"), name = name)
         }
     }
 
@@ -157,6 +158,9 @@ class RustOpenFinderBackend(
         for (i in 0 until results.length()) {
             val r = results.getJSONObject(i)
             val id = r.getString("hashed_adv_key_b64")
+            if (com.sacca.openfinder.BuildConfig.DEBUG) android.util.Log.i("StaticFetch",
+                "reports=${r.getJSONArray("reports").length()} selected=${id in wanted} " +
+                    "undecryptable=${r.optInt("undecryptable")} invalid=${r.optInt("invalid")}")
             if (id in wanted) out += parseReports(r.getJSONArray("reports"), id)
         }
         return out
@@ -258,6 +262,34 @@ class RustOpenFinderBackend(
         val reply = call(JSONObject().put("cmd", "static_keys_info").put("keys", req), touchesApple = false)
         val infos = reply.getJSONArray("keys")
         List(infos.length()) { i -> infos.getJSONObject(i).getString("hashed_adv_key_b64") }
+    }
+
+    override suspend fun rotateStaticKeys(newJson: String, oldHashB64: String?): Int = onNative {
+        // Native validation first, exactly like the import path: a bad key must not reach the blob.
+        val arr = try { JSONArray(newJson) } catch (e: Exception) { JSONArray().put(JSONObject(newJson)) }
+        if (arr.length() == 0) throw OpenFinderException(OpenFinderError.Backend("empty rotation payload"))
+        call(JSONObject().put("cmd", "static_keys_info").put("keys", arr), touchesApple = false)
+        val keys = loadStaticKeys().toMutableList()
+        // Keep one active key entry per tag. Match the superseded hash first (multi-tag safe);
+        // fallback for a reclaim after a foreign write: the tag no longer advertises any blob key,
+        // so retire same-named current entries.
+        if (keys.isNotEmpty()) {
+            val existing = JSONArray().also { a -> keys.forEach(a::put) }
+            val infos = call(JSONObject().put("cmd", "static_keys_info").put("keys", existing), touchesApple = false)
+                .getJSONArray("keys")
+            val byHash = List(infos.length()) { i -> infos.getJSONObject(i).getString("hashed_adv_key_b64") }
+            val freshName = arr.getJSONObject(0).optString("name").ifEmpty { "Static tag" }
+            val toRemove = (0 until keys.size).filter { i ->
+                (oldHashB64 != null && byHash.getOrNull(i) == oldHashB64) ||
+                    (oldHashB64 == null && keys[i].optString("name") == freshName)
+            }.ifEmpty {
+                (0 until keys.size).filter { keys[it].optString("name") == freshName }
+            }
+            for (i in toRemove.sortedDescending()) keys.removeAt(i)
+        }
+        for (i in 0 until arr.length()) keys.add(arr.getJSONObject(i))
+        saveStaticKeys(keys)
+        keys.size
     }
 
     /** Opens the library in the background so the first request is not slow; no machine is fine. */
